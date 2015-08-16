@@ -1,0 +1,94 @@
+---
+title: "Reproducible Research - Peer Assessment 1"
+author: "Vishal Bhatia"
+date: "Sunday, August 16, 2015"
+output: html_document
+---
+
+This is my submission for the first peer assessment of the Reproducible Research course.
+
+```{r, echo=FALSE}
+library(lattice)
+##This is the only additional package needed, and I assume it has already been downloaded onto your system
+rawdata <- read.csv("activity.csv")
+##I load the data from the CSV file (available on the GitHub repo); I assume that the CSV file is saved in the working directory
+rawdata$date <- as.Date(as.factor(rawdata$date), format = "%Y-%m-%d")
+##I convert dates from "Factor" class to "Date" class
+```
+
+#1. Number of steps taken per day
+```{r, echo=FALSE}
+Q1DF <- aggregate(steps ~ date, data = rawdata, FUN = sum)
+##I calculate the total number of steps taken each day
+hist(Q1DF$steps, breaks = 50, main = "Histogram for the Total Number of Steps taken in a Day", xlab = "No. of Steps", ylab = "Frequency")
+##I plot the histogram for the total number of steps taken in a day
+Q1mean <- round(mean(Q1DF$steps, na.rm = TRUE), digits=2)
+##I calculate the mean of the total number of steps taken in a day
+Q1median <- round(median(Q1DF$steps, na.rm = TRUE), digits=2)
+##I calculate the median of the total number of steps taken in a day
+```
+
+The mean and median of the total number of steps taken per day are `r Q1mean` and `r Q1median`, respectively.
+
+
+#2. Average daily activity pattern
+```{r, echo=FALSE}
+Q2DF <- aggregate(steps ~ interval, data = rawdata, FUN = mean)
+##I calculate the average number of steps taken in each interval
+plot(Q2DF$interval, Q2DF$steps, type = "l", main = "Average Number of Steps taken in every 5-Minute Interval", xlab = "5-Min. Interval", ylab = "Avg. No. of Steps")
+##I plot a time series line chart for the average number of steps taken in every 5-minute interval
+Q2interval <- Q2DF[Q2DF$steps == max(Q2DF$steps),1]
+##I provide the interval with the maximum number of steps
+```
+
+The interval with the maximum number of steps is `r Q2interval`.
+
+
+#3. Missing values
+```{r, echo=FALSE}
+Q3dim <- dim(rawdata[is.na(rawdata$steps) == TRUE,])[1]
+##I obtain the number of missing values here
+```
+
+The number of missing values in the data is `r Q3dim`.
+
+```{r, echo=FALSE}
+##To impute the missing values, I use the average number of steps taken in the corresponding 5-minute interval
+Q3DF_WithNA <- merge(rawdata, Q2DF, by.x = "interval", by.y = "interval")
+colnames(Q3DF_WithNA) <- c("interval", "steps", "date", "interval.avg.steps")
+##I merge the dataframe for the previous plot with the raw dataframe derived earlier to obtain a dataframe with the actual number of steps, and the average number of steps taken in the corresponding 5-minute interval
+Q3DF_WithNA <- Q3DF_WithNA[order(Q3DF_WithNA$date),]
+##This is my preference: I order the data as per date
+Q3DF_HandlingNA <- Q3DF_WithNA
+Q3DF_HandlingNA$no.na.steps <- ifelse(is.na(Q3DF_HandlingNA$steps)==FALSE, Q3DF_HandlingNA$steps, Q3DF_HandlingNA$interval.avg.steps)
+Q3DF_WithoutNA <- data.frame(Q3DF_HandlingNA$interval, Q3DF_HandlingNA$no.na.steps, Q3DF_HandlingNA$date)
+colnames(Q3DF_WithoutNA) <- c("interval", "steps", "date")
+##In the above sateps, I derive a dataframe where the missing values have been replaced by the average number of steps taken in the corresponding 5-minute interval
+Q3DF <- aggregate(steps ~ date, data = Q3DF_WithoutNA, FUN = sum)
+hist(Q3DF$steps, breaks = 50, main = "Histogram for the Total Number of Steps taken in a Day (with NAs imputed)", xlab = "No. of Steps", ylab = "Frequency")
+##I plot the histogram for the total number of steps taken in a day, with the imputed data
+Q3mean <- round(mean(Q3DF$steps), digits=2)
+Q3median <- round(median(Q3DF$steps), digits=2)
+```
+
+The mean and median of the total number of steps taken per day with data imputation are `r Q3mean` and `r Q3median`, respectively.
+
+Thus, using interval means as imputation values yields post-imputation mean and median values that are very close to their pre-imputation counterparts.
+
+
+#4. Differences in activity patterns between weekdays and weekends
+```{r, echo=FALSE}
+Q4DF <- Q3DF_WithoutNA
+Q4DF$day <- weekdays(Q4DF$date)
+Q4DF$day <- ifelse(Q4DF$day == "Monday" | Q4DF$day == "Tuesday" | Q4DF$day == "Wednesday" | Q4DF$day == "Thursday" | Q4DF$day == "Friday", "Weekday", "Weekend")
+##I generate a dataframe with missing values imputed and a new column, which indicates whether the day is a weekday or a weekend
+Q4DF_Weekday <- aggregate(steps ~ interval, data = Q4DF[Q4DF$day == "Weekday",], FUN = mean)
+Q4DF_Weekday$day <- c(rep("Weekday",nrow(Q4DF_Weekday)))
+##I create a sub-dataframe that averages the steps by interval for all weekdays
+Q4DF_Weekend <- aggregate(steps ~ interval, data = Q4DF[Q4DF$day == "Weekend",], FUN = mean)
+Q4DF_Weekend$day <- c(rep("Weekend",nrow(Q4DF_Weekend)))
+##I create a sub-dataframe that averages the steps by interval for all weekends
+Q4DF <- data.frame(rbind(Q4DF_Weekday, Q4DF_Weekend))
+##I combine the above two sub-dataframes to plot them together using xyplot
+xyplot(Q4DF$steps ~ Q4DF$interval | Q4DF$day, main="Activity Patterns on Weekdays and Weekends (with Imputed Missing Values)", xlab="Interval", ylab="Avg. No. of Steps", layout=c(1,2), type="l")
+```
